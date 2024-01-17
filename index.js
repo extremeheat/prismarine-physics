@@ -93,6 +93,11 @@ function Physics (mcData, world) {
     sprintingUUID: '662a6b8d-da3e-4c1c-8813-96ea6097278d' // SPEED_MODIFIER_SPRINTING_UUID is from LivingEntity.java
   }
 
+  const supportVelocityBlocksOnCollision = supportFeature('velocityBlocksOnCollision')
+  const supportVelocityBlocksOnTop = supportFeature('velocityBlocksOnTop')
+  const climbableTrapdoorFeature = supportFeature('climbableTrapdoor')
+  const supportClimbUsingJump = supportFeature('climbUsingJump')
+
   if (supportFeature('independentLiquidGravity')) {
     physics.waterGravity = 0.02
     physics.lavaGravity = 0.02
@@ -313,7 +318,7 @@ function Physics (mcData, world) {
         for (cursor.x = Math.floor(playerBB.minX); cursor.x <= Math.floor(playerBB.maxX); cursor.x++) {
           const block = world.getBlock(cursor)
           if (block) {
-            if (supportFeature('velocityBlocksOnCollision')) {
+            if (supportVelocityBlocksOnCollision) {
               if (block.type === soulsandId) {
                 vel.x *= physics.soulsandSpeed
                 vel.z *= physics.soulsandSpeed
@@ -338,7 +343,7 @@ function Physics (mcData, world) {
         }
       }
     }
-    if (supportFeature('velocityBlocksOnTop')) {
+    if (supportVelocityBlocksOnTop) {
       const blockBelow = world.getBlock(entity.pos.floored().offset(0, -0.5, 0))
       if (blockBelow) {
         if (blockBelow.type === soulsandId) {
@@ -428,7 +433,6 @@ function Physics (mcData, world) {
     vel.z += forward * cos - strafe * sin
   }
 
-  const climbableTrapdoorFeature = supportFeature('climbableTrapdoor')
   function isOnLadder (world, pos) {
     const block = world.getBlock(pos)
     if (!block) { return false }
@@ -582,7 +586,7 @@ function Physics (mcData, world) {
       moveEntity(entity, world, vel.x, vel.y, vel.z)
 
       if (isOnLadder(world, pos) && (entity.isCollidedHorizontally ||
-        (supportFeature('climbUsingJump') && entity.control.jump))) {
+        (supportClimbUsingJump && entity.control.jump))) {
         vel.y = physics.ladderClimbSpeed // climb ladder
       }
 
