@@ -8,9 +8,21 @@ function makeSupportFeature (mcData) {
   return feature => features.some(({ name, versions }) => name === feature && versions.includes(mcData.version.majorVersion))
 }
 
+const blockCategories = {
+  water: ['water', 'flowing_water'],
+  lava: ['lava', 'flowing_lava'],
+  waterLike: ['seagrass', 'tall_seagrass', 'kelp', 'kelp_plant', 'bubble_column'],
+  // Copper trapdoors is coming in 1.21
+  trapdoor: ['iron_trapdoor', 'acacia_trapdoor', 'birch_trapdoor', 'jungle_trapdoor', 'oak_trapdoor', 'dark_oak_trapdoor', 'spruce_trapdoor', 'crimson_trapdoor', 'warped_trapdoor', 'mangrove_trapdoor', 'cherry_trapdoor']
+}
+
 function Physics (mcData, world) {
   const supportFeature = makeSupportFeature(mcData)
   const blocksByName = mcData.blocksByName
+  const blockIds = Object.entries(blockCategories).reduce(function (acc, [category, blocks]) {
+    acc[category] = blocks.map(name => blocksByName[name]?.id).filter(id => id != null)
+    return acc
+  }, {})
 
   // Block Slipperiness
   // https://www.mcpk.wiki/w/index.php?title=Slipperiness
@@ -30,32 +42,14 @@ function Physics (mcData, world) {
   const soulsandId = blocksByName.soul_sand.id
   const honeyblockId = blocksByName.honey_block ? blocksByName.honey_block.id : -1 // 1.15+
   const webId = blocksByName.cobweb ? blocksByName.cobweb.id : blocksByName.web.id
-  const waterIds = [blocksByName.water.id, blocksByName.flowing_water ? blocksByName.flowing_water.id : -1]
-  const lavaIds = [blocksByName.lava.id, blocksByName.flowing_lava ? blocksByName.flowing_lava.id : -1]
+  const waterIds = blockIds.water
+  const lavaIds = blockIds.lava
   const ladderId = blocksByName.ladder.id
   const vineId = blocksByName.vine.id
 
-  // NOTE: Copper trapdoors is coming in 1.21.
-  const trapdoorIds = new Set()
-  if (blocksByName.iron_trapdoor) { trapdoorIds.add(blocksByName.iron_trapdoor.id) } // 1.8+
-  if (blocksByName.acacia_trapdoor) { trapdoorIds.add(blocksByName.acacia_trapdoor.id) } // 1.13+
-  if (blocksByName.birch_trapdoor) { trapdoorIds.add(blocksByName.birch_trapdoor.id) } // 1.13+
-  if (blocksByName.jungle_trapdoor) { trapdoorIds.add(blocksByName.jungle_trapdoor.id) } // 1.13+
-  if (blocksByName.oak_trapdoor) { trapdoorIds.add(blocksByName.oak_trapdoor.id) } // 1.13+
-  if (blocksByName.dark_oak_trapdoor) { trapdoorIds.add(blocksByName.dark_oak_trapdoor.id) } // 1.13+
-  if (blocksByName.spruce_trapdoor) { trapdoorIds.add(blocksByName.spruce_trapdoor.id) } // 1.13+
-  if (blocksByName.crimson_trapdoor) { trapdoorIds.add(blocksByName.crimson_trapdoor.id) } // 1.16+
-  if (blocksByName.warped_trapdoor) { trapdoorIds.add(blocksByName.warped_trapdoor.id) } // 1.16+
-  if (blocksByName.mangrove_trapdoor) { trapdoorIds.add(blocksByName.mangrove_trapdoor.id) } // 1.19+
-  if (blocksByName.cherry_trapdoor) { trapdoorIds.add(blocksByName.cherry_trapdoor.id) } // 1.20+
-
-  const waterLike = new Set()
-  if (blocksByName.seagrass) waterLike.add(blocksByName.seagrass.id) // 1.13+
-  if (blocksByName.tall_seagrass) waterLike.add(blocksByName.tall_seagrass.id) // 1.13+
-  if (blocksByName.kelp) waterLike.add(blocksByName.kelp.id) // 1.13+
-  if (blocksByName.kelp_plant) waterLike.add(blocksByName.kelp_plant.id) // 1.13+
+  const trapdoorIds = new Set(blockIds.trapdoor)
+  const waterLike = new Set(blockIds.waterLike)
   const bubblecolumnId = blocksByName.bubble_column ? blocksByName.bubble_column.id : -1 // 1.13+
-  if (blocksByName.bubble_column) waterLike.add(bubblecolumnId)
 
   const physics = {
     gravity: 0.08, // blocks/tick^2 https://minecraft.gamepedia.com/Entity#Motion_of_entities
@@ -446,10 +440,10 @@ function Physics (mcData, world) {
     //  3. The trapdoor and the ladder directly below it face the same direction.
     if (climbableTrapdoorFeature && trapdoorIds.has(block.type)) {
       const blockBelow = world.getBlock(pos.offset(0, -1, 0))
-      if (blockBelow.type !== ladderId) { return false } // condition 1.
-      const blockProperties = block.getProperties()
+      if (blockBelow.type !== ladderId) return false // condition 1.
+      const blockProperties = block._properties
       if (!blockProperties.open) { return false } // condition 2.
-      if (blockProperties.facing !== blockBelow.getProperties().facing) { return false } // condition 3
+      if (blockProperties.facing !== blockBelow._properties.facing) { return false } // condition 3
       return true
     }
 
@@ -624,7 +618,7 @@ function Physics (mcData, world) {
   function getRenderedDepth (block) {
     if (!block) return -1
     if (waterLike.has(block.type)) return 0
-    if (block.getProperties().waterlogged) return 0
+    if (block._properties.waterlogged) return 0
     if (!waterIds.includes(block.type)) return -1
     const meta = block.metadata
     return meta >= 8 ? 0 : meta
@@ -672,7 +666,7 @@ function Physics (mcData, world) {
       for (cursor.z = Math.floor(bb.minZ); cursor.z <= Math.floor(bb.maxZ); cursor.z++) {
         for (cursor.x = Math.floor(bb.minX); cursor.x <= Math.floor(bb.maxX); cursor.x++) {
           const block = world.getBlock(cursor)
-          if (block && (waterIds.includes(block.type) || waterLike.has(block.type) || block.getProperties().waterlogged)) {
+          if (block && (waterIds.includes(block.type) || waterLike.has(block.type) || block._properties.waterlogged)) {
             const waterLevel = cursor.y + 1 - getLiquidHeightPcent(block)
             if (Math.ceil(bb.maxY) >= waterLevel) waterBlocks.push(block)
           }
